@@ -37,6 +37,9 @@
 
 int daemonize = 0;
 int print_unknown = 0;
+int co2 = 0;
+int temp = 0;
+int prtg = 0;
 char *datadir;
 
 uint16_t co2mon_data[256];
@@ -158,7 +161,10 @@ device_loop(co2mon_device dev)
         checksum = r0 + r1 + r2;
         if (checksum != r3)
         {
-            fprintf(stderr, "checksum error (%02hhx, await %02hhx)\n", checksum, r3);
+			if (!prtg)
+			{
+				fprintf(stderr, "checksum error (%02hhx, await %02hhx)\n", checksum, r3);
+			}	
             continue;
         }
 
@@ -170,6 +176,26 @@ device_loop(co2mon_device dev)
         case CODE_TAMB:
             snprintf(buf, VALUE_MAX, "%.4f", decode_temperature(w));
 
+			if (co2)
+			{
+				break;
+			}
+			if (temp)
+			{	
+				if (prtg)
+				{
+					printf("%s", "0:");
+					printf("%s", buf);
+					printf("%s\n", ":OK");
+				}
+				else
+				{
+					printf("Temperature\t%s\n", buf);
+				}
+				
+				fflush(stdout);
+				exit(0);
+			}
             if (!daemonize)
             {
                 printf("Tamb\t%s\n", buf);
@@ -194,6 +220,26 @@ device_loop(co2mon_device dev)
             }
             snprintf(buf, VALUE_MAX, "%d", (int)w);
 
+			if (temp)
+			{
+				break;
+			}
+			if (co2)
+			{
+				if (prtg)
+				{
+					printf("%s", "0:");
+					printf("%s", buf);
+					printf("%s\n", ":OK");
+				}
+				else
+				{
+					printf("CO2\t%s\n", buf);
+				}
+				
+				fflush(stdout);
+				exit(0);
+			}
             if (!daemonize)
             {
                 printf("CntR\t%s\n", buf);
@@ -257,15 +303,24 @@ int main(int argc, char *argv[])
     int c;
     int opterr = 0;
     int show_help = 0;
-    while ((c = getopt(argc, argv, ":dhuD:l:p:")) != -1)
+    while ((c = getopt(argc, argv, ":cdhmtuD:l:p:")) != -1)
     {
         switch (c)
         {
         case 'd':
             daemonize = 1;
             break;
+		case 'c':
+			co2 = 1;
+			break;
+		case 't':
+			temp = 1;
+			break;
         case 'h':
             show_help = 1;
+            break;
+		case 'm':
+            prtg = 1;
             break;
         case 'u':
             print_unknown = 1;
@@ -295,6 +350,9 @@ int main(int argc, char *argv[])
         {
             fprintf(stderr, "\n");
             fprintf(stderr, "  -d    run as a daemon\n");
+			fprintf(stderr, "  -c    show co2 only\n");
+			fprintf(stderr, "  -t    rshow temperature only\n");
+			fprintf(stderr, "  -m    output in PRTG format\n");
             fprintf(stderr, "  -h    show this help message\n");
             fprintf(stderr, "  -u    print values for unknown items\n");
             fprintf(stderr, "  -D datadir\n");
